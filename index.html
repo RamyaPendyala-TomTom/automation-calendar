@@ -45,12 +45,11 @@
         .leave-item:hover {
             filter: brightness(1.1);
         }
-        /* Ensure buttons are never pushed out by long text */
         .controls-wrapper {
             flex-shrink: 0;
             display: flex;
             gap: 4px;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.25);
             padding: 2px 4px;
             border-radius: 6px;
             margin-left: 6px;
@@ -63,13 +62,19 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
         
-        // --- Static Config ---
+        // --- Team Members (Shown in Sidebar) ---
         const TEAM_MEMBERS = [
             { id: '1', name: 'Selcuk', color: 'bg-blue-600', border: 'border-blue-700' },
-            { id: '2', name: 'Bruno', color: 'bg-emerald-600', border: 'border-emerald-700' },
-            { id: '3', name: 'Lazar', color: 'bg-purple-600', border: 'border-purple-700' },
-            { id: '4', name: 'Dusan', color: 'bg-orange-600', border: 'border-orange-700' },
-            { id: '5', name: 'Ramya', color: 'bg-indigo-600', border: 'border-indigo-700' },
+            { id: '2', name: 'Bruno', color: 'bg-teal-600', border: 'border-teal-700' },
+            { id: '3', name: 'Lazar', color: 'bg-violet-600', border: 'border-violet-700' },
+            { id: '4', name: 'Dusan', color: 'bg-rose-600', border: 'border-rose-700' },
+            { id: '5', name: 'Ramya', color: 'bg-amber-600', border: 'border-amber-700' },
+        ];
+
+        // --- Office Locations (Only shown in Registration Modal) ---
+        const LOCATIONS = [
+            { id: 'loc-nl', name: 'NL (Office)', color: 'bg-slate-500', border: 'border-slate-600' },
+            { id: 'loc-bel', name: 'Belgrade (Office)', color: 'bg-slate-500', border: 'border-slate-600' }
         ];
 
         const LEAVE_TYPES = ['Vacation', 'Bank Holiday', 'Event', 'Travel', 'Development Day'];
@@ -87,17 +92,14 @@
             const [editingId, setEditingId] = useState(null);
             const [formState, setFormState] = useState({ userId: '1', start: '', end: '', type: 'Vacation' });
 
-            // Injected Environment variables
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'automation-team-app';
 
-            // Step 1: Authentication
             useEffect(() => {
                 if (!window.FirebaseAPI || !firebaseConfig) {
                     setUser({ uid: 'local-user' });
                     return;
                 }
-
                 const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseAPI;
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
@@ -109,37 +111,25 @@
                         } else {
                             await signInAnonymously(auth);
                         }
-                    } catch (err) {
-                        console.error("Auth Error:", err);
-                    }
+                    } catch (err) { console.error("Auth Error:", err); }
                 };
-
                 performAuth();
                 const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    if (u) {
-                        setUser(u);
-                        setIsCloud(true);
-                    }
+                    if (u) { setUser(u); setIsCloud(true); }
                 });
                 return () => unsubscribe();
             }, []);
 
-            // Step 2: Firestore Sync
             useEffect(() => {
                 if (!isCloud || !user || !firebaseConfig) return;
-
                 const { initializeApp, getFirestore, collection, onSnapshot } = window.FirebaseAPI;
                 const db = getFirestore(initializeApp(firebaseConfig));
                 const leavesRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
-                
                 const unsubscribe = onSnapshot(leavesRef, (snapshot) => {
                     const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                     setLeaves(data);
                     localStorage.setItem('automation_leaves_v3', JSON.stringify(data));
-                }, (error) => {
-                    console.error("Firestore sync error:", error);
-                });
-
+                }, (error) => console.error("Firestore sync error:", error));
                 return () => unsubscribe();
             }, [user, isCloud]);
 
@@ -180,22 +170,14 @@
                 setIsModalOpen(true);
             };
 
-            const requestDelete = (id, e) => {
-                e.stopPropagation();
-                setDeleteConfirmId(id);
-            };
-
             const executeDelete = async () => {
                 if (!deleteConfirmId) return;
-
                 if (isCloud && firebaseConfig) {
                     const { initializeApp, getFirestore, doc, deleteDoc } = window.FirebaseAPI;
                     const db = getFirestore(initializeApp(firebaseConfig));
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaves', deleteConfirmId));
-                    } catch (err) {
-                        console.error("Deletion failed:", err);
-                    }
+                    } catch (err) { console.error("Deletion failed:", err); }
                 } else {
                     const updated = leaves.filter(l => l.id !== deleteConfirmId);
                     setLeaves(updated);
@@ -207,7 +189,6 @@
             const handleSave = async (e) => {
                 e.preventDefault();
                 if (!formState.start || !formState.end) return;
-
                 if (isCloud && firebaseConfig) {
                     const { initializeApp, getFirestore, collection, doc, setDoc, addDoc } = window.FirebaseAPI;
                     const db = getFirestore(initializeApp(firebaseConfig));
@@ -218,9 +199,7 @@
                         } else {
                             await addDoc(leavesRef, formState);
                         }
-                    } catch (err) {
-                        console.error("Save failed:", err);
-                    }
+                    } catch (err) { console.error("Save failed:", err); }
                 } else {
                     const entryId = editingId || Date.now().toString();
                     const newEntry = { ...formState, id: entryId };
@@ -242,8 +221,8 @@
                                     <span className="text-3xl">🗓️</span>
                                     Automation Team Calendar
                                 </h1>
-                                <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
-                                    Squad Availability Tracker
+                                <p className="text-slate-500 text-sm mt-1 flex items-center gap-2 tracking-tight">
+                                    Squad Availability Tracker (Amsterdam & Belgrade)
                                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold text-white uppercase ${isCloud ? 'bg-green-500' : 'bg-amber-500'}`}>
                                         {isCloud ? 'Synced' : 'Local'}
                                     </span>
@@ -257,12 +236,12 @@
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
-                                    <h2 className="font-bold text-slate-400 mb-4 uppercase text-[10px] tracking-widest">Team</h2>
+                                    <h2 className="font-bold text-slate-400 mb-4 uppercase text-[10px] tracking-widest">Team Members</h2>
                                     <div className="space-y-2.5">
                                         {TEAM_MEMBERS.map(member => (
                                             <div key={member.id} className="flex items-center gap-3">
-                                                <div className={`w-2.5 h-2.5 rounded-full ${member.color}`} />
-                                                <span className="text-sm text-slate-600 font-bold">{member.name}</span>
+                                                <div className={`w-3 h-3 rounded-full ${member.color}`} />
+                                                <span className="text-sm text-slate-600 font-bold tracking-tight">{member.name}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -301,13 +280,13 @@
                                                 {date && <span className={`text-[10px] font-black inline-flex items-center justify-center rounded-lg w-6 h-6 mb-1 ${isToday ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300'}`}>{date.getDate()}</span>}
                                                 <div className="space-y-1 overflow-y-auto max-h-[90px] scrollbar-hide">
                                                     {dayLeaves.map(leave => {
-                                                        const member = TEAM_MEMBERS.find(m => m.id === leave.userId);
+                                                        const member = [...TEAM_MEMBERS, ...LOCATIONS].find(m => m.id === leave.userId);
                                                         return (
-                                                            <div key={leave.id} className={`leave-item p-1.5 rounded-lg border shadow-sm text-white font-bold flex items-center justify-between gap-1 overflow-hidden ${member?.color} ${member?.border}`}>
-                                                                <span className="text-[9px] truncate flex-1 min-w-0">{member?.name} ({leave.type})</span>
+                                                            <div key={leave.id} className={`leave-item p-1.5 rounded-lg border shadow-sm text-white font-bold flex items-center justify-between gap-1 overflow-hidden ${member?.color || 'bg-slate-500'} ${member?.border || 'border-slate-600'}`}>
+                                                                <span className="text-[9px] truncate flex-1 min-w-0">{member?.name || 'Unknown'} ({leave.type})</span>
                                                                 <div className="controls-wrapper">
-                                                                    <button onClick={(e) => openEditModal(leave, e)} className="hover:text-yellow-300 text-[10px]">✎</button>
-                                                                    <button onClick={(e) => requestDelete(leave.id, e)} className="hover:text-red-300 text-[10px]">×</button>
+                                                                    <button onClick={(e) => openEditModal(leave, e)} className="hover:text-yellow-200 text-[11px] font-bold">✎</button>
+                                                                    <button onClick={(e) => setDeleteConfirmId(leave.id)} className="hover:text-red-200 text-[11px] font-bold">×</button>
                                                                 </div>
                                                             </div>
                                                         );
@@ -321,7 +300,6 @@
                         </div>
                     </div>
 
-                    {/* Registration Modal */}
                     {isModalOpen && (
                         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
                             <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -331,9 +309,18 @@
                                 </div>
                                 <form onSubmit={handleSave} className="p-8 space-y-5">
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Team Member</label>
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 outline-none focus:border-indigo-500 font-bold text-slate-700" onChange={e => setFormState({...formState, userId: e.target.value})} value={formState.userId}>
-                                            {TEAM_MEMBERS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Member or Location</label>
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 outline-none focus:border-indigo-500 font-bold text-slate-700 appearance-none" 
+                                            onChange={e => setFormState({...formState, userId: e.target.value})} 
+                                            value={formState.userId}
+                                        >
+                                            <optgroup label="Individuals">
+                                                {TEAM_MEMBERS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                            </optgroup>
+                                            <optgroup label="Office/Location">
+                                                {LOCATIONS.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                                            </optgroup>
                                         </select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
@@ -353,7 +340,7 @@
                                         </select>
                                     </div>
                                     <div className="flex gap-4 pt-4">
-                                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 font-black text-slate-400 py-4 uppercase tracking-widest text-xs hover:text-slate-600">Cancel</button>
+                                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 font-black text-slate-400 py-4 uppercase tracking-widest text-xs hover:text-slate-600 transition-colors">Cancel</button>
                                         <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest text-xs">Confirm</button>
                                     </div>
                                 </form>
@@ -361,7 +348,6 @@
                         </div>
                     )}
 
-                    {/* Delete Confirmation Modal */}
                     {deleteConfirmId && (
                         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[60] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center animate-in fade-in zoom-in duration-200">
@@ -369,7 +355,7 @@
                                     <span className="text-3xl font-bold">!</span>
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Entry?</h3>
-                                <p className="text-slate-500 mb-8">This action cannot be undone. Are you sure you want to remove this leave entry?</p>
+                                <p className="text-slate-500 mb-8 tracking-tight">This action cannot be undone. Are you sure you want to remove this leave entry?</p>
                                 <div className="flex gap-4">
                                     <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
                                     <button onClick={executeDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-100 hover:bg-red-700">Delete</button>
