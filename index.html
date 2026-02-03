@@ -14,7 +14,7 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         #root:empty::before {
-            content: 'Loading Calendar Assets... If this persists, please check your internet connection or SharePoint permissions.';
+            content: 'Loading Calendar Assets... If this persists, please ensure you are connected to the internet.';
             display: flex;
             justify-content: center;
             align-items: center;
@@ -28,28 +28,31 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
-
+        const { useState, useMemo } = React;
+        
         const TEAM_MEMBERS = [
-            { id: '1', name: 'Selcuk', color: 'bg-blue-500', border: 'border-blue-200' },
-            { id: '2', name: 'Bruno', color: 'bg-green-500', border: 'border-green-200' },
-            { id: '3', name: 'Lazar', color: 'bg-purple-500', border: 'border-purple-200' },
-            { id: '4', name: 'Dusan', color: 'bg-orange-500', border: 'border-orange-200' },
-            { id: '5', name: 'Ramya', color: 'bg-indigo-500', border: 'border-indigo-200' },
+            { id: '1', name: 'Selcuk', color: 'bg-blue-600', border: 'border-blue-200' },
+            { id: '2', name: 'Bruno', color: 'bg-emerald-600', border: 'border-emerald-200' },
+            { id: '3', name: 'Lazar', color: 'bg-purple-600', border: 'border-purple-200' },
+            { id: '4', name: 'Dusan', color: 'bg-orange-600', border: 'border-orange-200' },
+            { id: '5', name: 'Ramya', color: 'bg-indigo-600', border: 'border-indigo-200' },
         ];
 
+        // Categories: Bank Holiday, Vacation, Event, Travel
+        const LEAVE_TYPES = ['Vacation', 'Bank Holiday', 'Event', 'Travel'];
+
         const INITIAL_LEAVES = [
-            { id: 1, userId: '1', start: '2026-02-10', end: '2026-02-12', type: 'Holiday' },
-            { id: 2, userId: '2', start: '2026-02-15', end: '2026-02-20', type: 'Holiday' },
-            { id: 3, userId: '3', start: '2026-02-02', end: '2026-02-04', type: 'Sick Leave' },
-            { id: 4, userId: '5', start: '2026-02-23', end: '2026-02-24', type: 'Personal' },
+            { id: 1, userId: '1', start: '2026-02-10', end: '2026-02-12', type: 'Vacation' },
+            { id: 2, userId: '2', start: '2026-02-15', end: '2026-02-20', type: 'Travel' },
+            { id: 3, userId: '5', start: '2026-02-02', end: '2026-02-02', type: 'Bank Holiday' },
+            { id: 4, userId: '3', start: '2026-02-24', end: '2026-02-26', type: 'Event' },
         ];
 
         function App() {
-            const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
+            const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1)); // Start at Feb 2026
             const [leaves, setLeaves] = useState(INITIAL_LEAVES);
             const [isModalOpen, setIsModalOpen] = useState(false);
-            const [newLeave, setNewLeave] = useState({ userId: '1', start: '', end: '', type: 'Holiday' });
+            const [newLeave, setNewLeave] = useState({ userId: '1', start: '', end: '', type: 'Vacation' });
 
             const daysInMonth = useMemo(() => {
                 const year = currentDate.getFullYear();
@@ -57,7 +60,7 @@
                 const firstDay = new Date(year, month, 1).getDay();
                 const days = new Date(year, month + 1, 0).getDate();
                 const calendarDays = [];
-                const padding = firstDay === 0 ? 6 : firstDay - 1;
+                const padding = firstDay === 0 ? 6 : firstDay - 1; // Align to Monday start
                 for (let i = 0; i < padding; i++) calendarDays.push(null);
                 for (let i = 1; i <= days; i++) calendarDays.push(new Date(year, month, i));
                 return calendarDays;
@@ -84,78 +87,93 @@
 
             return (
                 <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-                    <div className="max-w-6xl mx-auto">
+                    <div className="max-w-7xl mx-auto">
+                        
+                        {/* Header */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                             <div>
                                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                                    <span className="text-2xl">🌴</span>
-                                    #automation-pathfinders Leave Calendar
+                                    <span className="text-3xl">🗓️</span>
+                                    #automation-pathfinders Squad Calendar
                                 </h1>
-                                <p className="text-slate-500 text-sm mt-1">Track availability for the Amsterdam & Belgrade squads.</p>
+                                <p className="text-slate-500 text-sm mt-1">Amsterdam & Belgrade Team Availability</p>
                             </div>
-                            <button
-                                onClick={() => setIsModalOpen(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-95 font-semibold"
+                            <button 
+                                onClick={() => setIsModalOpen(true)} 
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg active:scale-95 font-bold"
                             >
-                                <span className="text-xl">+</span> Register My Leave
+                                <span className="text-xl">+</span> Register Leave
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            
+                            {/* Left Panel: Legend */}
                             <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                        <span>👥</span> Team Roster
+                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest text-slate-400">
+                                        <span>👥</span> Team
                                     </h2>
                                     <div className="space-y-3">
                                         {TEAM_MEMBERS.map(member => (
                                             <div key={member.id} className="flex items-center gap-3">
                                                 <div className={`w-3 h-3 rounded-full ${member.color}`} />
-                                                <span className="text-sm text-slate-600 font-medium">{member.name}</span>
+                                                <span className="text-sm text-slate-600 font-semibold">{member.name}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                                    <h2 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                                        <span>ℹ️</span> RC Cycle Reminder
+                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest text-slate-400">
+                                        <span>🏷️</span> Leave Types
                                     </h2>
-                                    <p className="text-xs text-indigo-700 leading-relaxed">
-                                        Ensure leaves are logged 1 week in advance to coordinate automated regression triggers.
-                                    </p>
+                                    <div className="space-y-2">
+                                        {LEAVE_TYPES.map(type => (
+                                            <div key={type} className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg uppercase tracking-tight">
+                                                {type}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="lg:col-span-3 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-                                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white">
-                                    <h3 className="font-bold text-xl text-slate-900">{monthName} {year}</h3>
-                                    <div className="flex gap-2">
-                                        <button onClick={handlePrevMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg border border-slate-200 font-bold text-slate-600 transition-colors">←</button>
-                                        <button onClick={handleNextMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg border border-slate-200 font-bold text-slate-600 transition-colors">→</button>
+                            {/* Main Calendar Grid */}
+                            <div className="lg:col-span-4 bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
+                                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
+                                    <h3 className="font-black text-2xl text-slate-900">{monthName} {year}</h3>
+                                    <div className="flex gap-3">
+                                        <button onClick={handlePrevMonth} className="w-12 h-12 flex items-center justify-center hover:bg-slate-50 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 transition-all shadow-sm">←</button>
+                                        <button onClick={handleNextMonth} className="w-12 h-12 flex items-center justify-center hover:bg-slate-50 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 transition-all shadow-sm">→</button>
                                     </div>
                                 </div>
+
                                 <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
                                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                        <div key={day} className="py-3 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">{day}</div>
+                                        <div key={day} className="py-4 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">{day}</div>
                                     ))}
                                 </div>
-                                <div className="grid grid-cols-7 auto-rows-[120px]">
+
+                                <div className="grid grid-cols-7 auto-rows-[130px]">
                                     {daysInMonth.map((date, idx) => {
                                         const dayLeaves = getLeavesForDate(date);
                                         const isToday = date && date.toDateString() === new Date().toDateString();
                                         return (
                                             <div key={idx} className={`border-r border-b border-slate-100 p-2 relative ${!date ? 'bg-slate-50/40' : 'hover:bg-slate-50/20'}`}>
                                                 {date && (
-                                                    <span className={`text-sm font-bold inline-flex items-center justify-center rounded-lg w-7 h-7 ${isToday ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
+                                                    <span className={`text-xs font-black inline-flex items-center justify-center rounded-xl w-8 h-8 ${isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-400'}`}>
                                                         {date.getDate()}
                                                     </span>
                                                 )}
-                                                <div className="mt-2 space-y-1">
+                                                <div className="mt-2 space-y-1.5 overflow-y-auto max-h-[85px] scrollbar-hide">
                                                     {dayLeaves.map(leave => {
                                                         const member = TEAM_MEMBERS.find(m => m.id === leave.userId);
                                                         return (
-                                                            <div key={leave.id} className={`text-[10px] px-2 py-1 rounded-md border shadow-sm truncate font-bold text-white ${member?.color}`}>
-                                                                {member?.name}
+                                                            <div 
+                                                                key={leave.id} 
+                                                                className={`text-[9px] px-2 py-1.5 rounded-lg border shadow-sm truncate font-black text-white leading-none ${member?.color} ${member?.border}`}
+                                                                title={`${member?.name}: ${leave.type}`}
+                                                            >
+                                                                {member?.name} <span className="opacity-70 font-medium">({leave.type})</span>
                                                             </div>
                                                         );
                                                     })}
@@ -168,18 +186,19 @@
                         </div>
                     </div>
 
+                    {/* Registration Modal */}
                     {isModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
-                                <div className="bg-indigo-600 p-8 text-white">
-                                    <h2 className="text-2xl font-bold mb-1">Plan Your Leave</h2>
-                                    <p className="text-indigo-100 text-sm">Synchronize your time off with the team.</p>
+                        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+                                <div className="bg-indigo-600 p-10 text-white">
+                                    <h2 className="text-3xl font-black mb-2">Register Leave</h2>
+                                    <p className="text-indigo-100/80 font-medium">Coordinate your time off with the squad.</p>
                                 </div>
-                                <form onSubmit={handleAddLeave} className="p-8 space-y-5">
+                                <form onSubmit={handleAddLeave} className="p-10 space-y-6">
                                     <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase mb-2">Team Member</label>
-                                        <select
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 outline-none focus:border-indigo-500 font-semibold"
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Team Member</label>
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700 appearance-none shadow-sm" 
                                             onChange={e => setNewLeave({...newLeave, userId: e.target.value})}
                                             value={newLeave.userId}
                                         >
@@ -188,17 +207,27 @@
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-black text-slate-400 uppercase mb-2">Start</label>
-                                            <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 font-semibold" onChange={e => setNewLeave({...newLeave, start: e.target.value})}/>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Start Date</label>
+                                            <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold shadow-sm" onChange={e => setNewLeave({...newLeave, start: e.target.value})}/>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black text-slate-400 uppercase mb-2">End</label>
-                                            <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 font-semibold" onChange={e => setNewLeave({...newLeave, end: e.target.value})}/>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">End Date</label>
+                                            <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold shadow-sm" onChange={e => setNewLeave({...newLeave, end: e.target.value})}/>
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Leave Category</label>
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700 appearance-none shadow-sm" 
+                                            value={newLeave.type}
+                                            onChange={e => setNewLeave({...newLeave, type: e.target.value})}
+                                        >
+                                            {LEAVE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                                        </select>
+                                    </div>
                                     <div className="flex gap-4 pt-4">
-                                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 font-bold text-slate-500 py-3.5">Cancel</button>
-                                        <button type="submit" className="flex-1 bg-indigo-600 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Save & Post</button>
+                                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 font-black text-slate-400 py-4 uppercase tracking-widest text-xs">Cancel</button>
+                                        <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest text-xs">Confirm & Post</button>
                                     </div>
                                 </form>
                             </div>
