@@ -62,16 +62,26 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
         
-        // --- Team Members (Shown in Sidebar) ---
+        // --- Firebase Globals & Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'automation-team-app';
+        let db, auth;
+
+        if (firebaseConfig) {
+            const app = window.FirebaseAPI.initializeApp(firebaseConfig);
+            auth = window.FirebaseAPI.getAuth(app);
+            db = window.FirebaseAPI.getFirestore(app);
+        }
+
+        // --- Team Members ---
         const TEAM_MEMBERS = [
             { id: '1', name: 'Selcuk', color: 'bg-blue-600', border: 'border-blue-700' },
             { id: '2', name: 'Bruno', color: 'bg-teal-600', border: 'border-teal-700' },
             { id: '3', name: 'Lazar', color: 'bg-violet-600', border: 'border-violet-700' },
             { id: '4', name: 'Dusan', color: 'bg-rose-600', border: 'border-rose-700' },
-            { id: '5', name: 'Ramya', color: 'bg-amber-600', border: 'border-amber-700' },
+            { id: '5', name: 'Ramya', color: 'bg-indigo-600', border: 'border-indigo-700' },
         ];
 
-        // --- Office Locations (Only shown in Registration Modal) ---
         const LOCATIONS = [
             { id: 'loc-nl', name: 'NL (Office)', color: 'bg-slate-500', border: 'border-slate-600' },
             { id: 'loc-bel', name: 'Belgrade (Office)', color: 'bg-slate-500', border: 'border-slate-600' }
@@ -83,7 +93,7 @@
             const [user, setUser] = useState(null);
             const [isCloud, setIsCloud] = useState(false);
             const [leaves, setLeaves] = useState(() => {
-                const saved = localStorage.getItem('automation_leaves_v3');
+                const saved = localStorage.getItem('automation_leaves_cloud_v1');
                 return saved ? JSON.parse(saved) : [];
             });
             const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
@@ -92,44 +102,42 @@
             const [editingId, setEditingId] = useState(null);
             const [formState, setFormState] = useState({ userId: '1', start: '', end: '', type: 'Vacation' });
 
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'automation-team-app';
-
+            // 1. Auth Listener (Rule 3)
             useEffect(() => {
-                if (!window.FirebaseAPI || !firebaseConfig) {
+                if (!auth) {
                     setUser({ uid: 'local-user' });
                     return;
                 }
-                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseAPI;
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
 
-                const performAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (err) { console.error("Auth Error:", err); }
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await window.FirebaseAPI.signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await window.FirebaseAPI.signInAnonymously(auth);
+                    }
                 };
-                performAuth();
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    if (u) { setUser(u); setIsCloud(true); }
+
+                initAuth();
+                const unsubscribe = window.FirebaseAPI.onAuthStateChanged(auth, (u) => {
+                    setUser(u);
+                    if (u) setIsCloud(true);
                 });
                 return () => unsubscribe();
             }, []);
 
+            // 2. Data Listener (Rule 1 & Rule 3 Guard)
             useEffect(() => {
-                if (!isCloud || !user || !firebaseConfig) return;
-                const { initializeApp, getFirestore, collection, onSnapshot } = window.FirebaseAPI;
-                const db = getFirestore(initializeApp(firebaseConfig));
-                const leavesRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
-                const unsubscribe = onSnapshot(leavesRef, (snapshot) => {
+                if (!isCloud || !user || !db) return;
+
+                const leavesRef = window.FirebaseAPI.collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
+                const unsubscribe = window.FirebaseAPI.onSnapshot(leavesRef, (snapshot) => {
                     const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                     setLeaves(data);
-                    localStorage.setItem('automation_leaves_v3', JSON.stringify(data));
-                }, (error) => console.error("Firestore sync error:", error));
+                    localStorage.setItem('automation_leaves_cloud_v1', JSON.stringify(data));
+                }, (error) => {
+                    console.error("Sync error:", error);
+                });
+
                 return () => unsubscribe();
             }, [user, isCloud]);
 
@@ -172,16 +180,18 @@
 
             const executeDelete = async () => {
                 if (!deleteConfirmId) return;
-                if (isCloud && firebaseConfig) {
-                    const { initializeApp, getFirestore, doc, deleteDoc } = window.FirebaseAPI;
-                    const db = getFirestore(initializeApp(firebaseConfig));
+                
+                if (isCloud && db) {
                     try {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaves', deleteConfirmId));
-                    } catch (err) { console.error("Deletion failed:", err); }
+                        const docRef = window.FirebaseAPI.doc(db, 'artifacts', appId, 'public', 'data', 'leaves', deleteConfirmId);
+                        await window.FirebaseAPI.deleteDoc(docRef);
+                    } catch (err) {
+                        console.error("Deletion failed:", err);
+                    }
                 } else {
                     const updated = leaves.filter(l => l.id !== deleteConfirmId);
                     setLeaves(updated);
-                    localStorage.setItem('automation_leaves_v3', JSON.stringify(updated));
+                    localStorage.setItem('automation_leaves_cloud_v1', JSON.stringify(updated));
                 }
                 setDeleteConfirmId(null);
             };
@@ -189,23 +199,25 @@
             const handleSave = async (e) => {
                 e.preventDefault();
                 if (!formState.start || !formState.end) return;
-                if (isCloud && firebaseConfig) {
-                    const { initializeApp, getFirestore, collection, doc, setDoc, addDoc } = window.FirebaseAPI;
-                    const db = getFirestore(initializeApp(firebaseConfig));
-                    const leavesRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
+
+                if (isCloud && db) {
                     try {
+                        const leavesRef = window.FirebaseAPI.collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
                         if (editingId) {
-                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaves', editingId), formState);
+                            const docRef = window.FirebaseAPI.doc(db, 'artifacts', appId, 'public', 'data', 'leaves', editingId);
+                            await window.FirebaseAPI.setDoc(docRef, formState);
                         } else {
-                            await addDoc(leavesRef, formState);
+                            await window.FirebaseAPI.addDoc(leavesRef, formState);
                         }
-                    } catch (err) { console.error("Save failed:", err); }
+                    } catch (err) {
+                        console.error("Save failed:", err);
+                    }
                 } else {
                     const entryId = editingId || Date.now().toString();
                     const newEntry = { ...formState, id: entryId };
                     const updated = editingId ? leaves.map(l => l.id === editingId ? newEntry : l) : [...leaves, newEntry];
                     setLeaves(updated);
-                    localStorage.setItem('automation_leaves_v3', JSON.stringify(updated));
+                    localStorage.setItem('automation_leaves_cloud_v1', JSON.stringify(updated));
                 }
                 setIsModalOpen(false);
             };
@@ -224,7 +236,7 @@
                                 <p className="text-slate-500 text-sm mt-1 flex items-center gap-2 tracking-tight">
                                     Squad Availability Tracker (Amsterdam & Belgrade)
                                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold text-white uppercase ${isCloud ? 'bg-green-500' : 'bg-amber-500'}`}>
-                                        {isCloud ? 'Synced' : 'Local'}
+                                        {isCloud ? 'Synced Online' : 'Local Mode'}
                                     </span>
                                 </p>
                             </div>
