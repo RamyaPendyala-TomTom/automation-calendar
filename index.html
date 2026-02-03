@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>#automation-team Leave Calendar</title>
+    <title>Automation Team Leave Calendar</title>
     <!-- Tailwind CSS for Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and Babel CDNs to run JSX in browser -->
@@ -31,6 +31,7 @@
     <script type="text/babel">
         const { useState, useMemo } = React;
         
+        // Updated Team Members: Selcuk, Bruno, Lazar, Dusan, Ramya
         const TEAM_MEMBERS = [
             { id: '1', name: 'Selcuk', color: 'bg-blue-600', border: 'border-blue-200' },
             { id: '2', name: 'Bruno', color: 'bg-emerald-600', border: 'border-emerald-200' },
@@ -39,6 +40,7 @@
             { id: '5', name: 'Ramya', color: 'bg-indigo-600', border: 'border-indigo-200' },
         ];
 
+        // Updated Categories: Added Development Day
         const LEAVE_TYPES = ['Vacation', 'Bank Holiday', 'Event', 'Travel', 'Development Day'];
 
         function App() {
@@ -68,7 +70,11 @@
 
             const getLeavesForDate = (date) => {
                 if (!date) return [];
-                const dateStr = date.toISOString().split('T')[0];
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${y}-${m}-${d}`;
+                
                 return leaves.filter(l => dateStr >= l.start && dateStr <= l.end);
             };
 
@@ -108,13 +114,14 @@
                 <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
                     <div className="max-w-7xl mx-auto">
                         
+                        {/* Header: Updated Team Name */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                             <div>
                                 <h1 className="text-2xl font-bold flex items-center gap-2">
                                     <span className="text-3xl">🗓️</span>
-                                    #automation-team Calendar
+                                    Automation Team Calendar
                                 </h1>
-                                <p className="text-slate-500 text-sm mt-1">Automation Team Availability</p>
+                                <p className="text-slate-500 text-sm mt-1">Squad Availability & Training Tracker</p>
                             </div>
                             <button 
                                 onClick={openAddModal} 
@@ -126,6 +133,7 @@
 
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                             
+                            {/* Left Panel */}
                             <div className="lg:col-span-1 space-y-6">
                                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
                                     <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest text-slate-400">
@@ -154,6 +162,7 @@
                                 </div>
                             </div>
 
+                            {/* Main Calendar Grid */}
                             <div className="lg:col-span-4 bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
                                 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
                                     <h3 className="font-black text-2xl text-slate-900">{monthName} {year}</h3>
@@ -207,12 +216,13 @@
                         </div>
                     </div>
 
+                    {/* Modal */}
                     {isModalOpen && (
                         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
                             <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
                                 <div className="bg-indigo-600 p-10 text-white">
-                                    <h2 className="text-3xl font-black mb-2">{editingId ? 'Edit Leave' : 'Register Leave'}</h2>
-                                    <p className="text-indigo-100/80 font-medium">Coordinate your time off with the squad.</p>
+                                    <h2 className="text-3xl font-black mb-2">{editingId ? 'Edit Entry' : 'Register Leave'}</h2>
+                                    <p className="text-indigo-100/80 font-medium">Coordinate your schedule with the team.</p>
                                 </div>
                                 <form onSubmit={handleSave} className="p-10 space-y-6">
                                     <div>
@@ -248,7 +258,7 @@
                                     <div className="flex gap-4 pt-4">
                                         <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 font-black text-slate-400 py-4 uppercase tracking-widest text-xs">Cancel</button>
                                         <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest text-xs">
-                                            {editingId ? 'Save Changes' : 'Confirm & Post'}
+                                            {editingId ? 'Update' : 'Confirm'}
                                         </button>
                                     </div>
                                 </form>
