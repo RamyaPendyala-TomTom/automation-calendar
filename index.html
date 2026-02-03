@@ -6,15 +6,26 @@
     <title>Automation Team Leave Calendar</title>
     <!-- Tailwind CSS for Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React and Babel CDNs to run JSX in browser -->
+    <!-- React and Babel CDNs -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase state for React
+        window.FirebaseAPI = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, query };
+    </script>
+
     <style>
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         #root:empty::before {
-            content: 'Loading Calendar Assets... If this persists, please ensure you are connected to the internet.';
+            content: 'Initializing Secure Connection...';
             display: flex;
             justify-content: center;
             align-items: center;
@@ -22,16 +33,29 @@
             font-family: sans-serif;
             color: #64748b;
         }
-        .leave-item:hover .edit-controls { opacity: 1; }
+        /* Fix for lengthy text: Edit controls now overlay on hover */
+        .leave-item .edit-controls { 
+            display: none; 
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .leave-item:hover .edit-controls { 
+            display: flex; 
+        }
+        .leave-item:hover span {
+            padding-right: 40px; /* Make space for buttons */
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useEffect } = React;
         
-        // Updated Team Members: Selcuk, Bruno, Lazar, Dusan, Ramya
+        // Configuration
         const TEAM_MEMBERS = [
             { id: '1', name: 'Selcuk', color: 'bg-blue-600', border: 'border-blue-200' },
             { id: '2', name: 'Bruno', color: 'bg-emerald-600', border: 'border-emerald-200' },
@@ -40,15 +64,57 @@
             { id: '5', name: 'Ramya', color: 'bg-indigo-600', border: 'border-indigo-200' },
         ];
 
-        // Updated Categories: Added Development Day
         const LEAVE_TYPES = ['Vacation', 'Bank Holiday', 'Event', 'Travel', 'Development Day'];
 
         function App() {
-            const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
+            const [user, setUser] = useState(null);
             const [leaves, setLeaves] = useState([]);
+            const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [editingId, setEditingId] = useState(null);
             const [formState, setFormState] = useState({ userId: '1', start: '', end: '', type: 'Vacation' });
+
+            const { 
+                initializeApp, getAuth, signInAnonymously, signInWithCustomToken, 
+                onAuthStateChanged, getFirestore, collection, doc, setDoc, 
+                addDoc, deleteDoc, onSnapshot 
+            } = window.FirebaseAPI;
+
+            // 1. Initialize Firebase
+            const firebaseConfig = JSON.parse(__firebase_config);
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // 2. Auth Flow
+            useEffect(() => {
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            // 3. Data Sync (Persistence)
+            useEffect(() => {
+                if (!user) return;
+
+                const leavesRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
+                const unsubscribe = onSnapshot(leavesRef, (snapshot) => {
+                    const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                    setLeaves(data);
+                }, (error) => {
+                    console.error("Firestore error:", error);
+                });
+
+                return () => unsubscribe();
+            }, [user]);
 
             const daysInMonth = useMemo(() => {
                 const year = currentDate.getFullYear();
@@ -74,7 +140,6 @@
                 const m = String(date.getMonth() + 1).padStart(2, '0');
                 const d = String(date.getDate()).padStart(2, '0');
                 const dateStr = `${y}-${m}-${d}`;
-                
                 return leaves.filter(l => dateStr >= l.start && dateStr <= l.end);
             };
 
@@ -91,37 +156,48 @@
                 setIsModalOpen(true);
             };
 
-            const handleDelete = (id, e) => {
+            const handleDelete = async (id, e) => {
                 e.stopPropagation();
+                if (!user) return;
                 if(confirm("Are you sure you want to delete this leave entry?")) {
-                    setLeaves(leaves.filter(l => l.id !== id));
+                    try {
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaves', id));
+                    } catch (err) {
+                        console.error("Delete failed:", err);
+                    }
                 }
             };
 
-            const handleSave = (e) => {
+            const handleSave = async (e) => {
                 e.preventDefault();
-                if (!formState.start || !formState.end) return;
+                if (!formState.start || !formState.end || !user) return;
 
-                if (editingId) {
-                    setLeaves(leaves.map(l => l.id === editingId ? { ...formState, id: editingId } : l));
-                } else {
-                    setLeaves([...leaves, { ...formState, id: Date.now() }]);
+                try {
+                    const leavesRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaves');
+                    if (editingId) {
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'leaves', editingId), formState);
+                    } else {
+                        await addDoc(leavesRef, formState);
+                    }
+                    setIsModalOpen(false);
+                } catch (err) {
+                    console.error("Save failed:", err);
                 }
-                setIsModalOpen(false);
             };
+
+            if (!user) return null;
 
             return (
                 <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
                     <div className="max-w-7xl mx-auto">
                         
-                        {/* Header: Updated Team Name */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                             <div>
                                 <h1 className="text-2xl font-bold flex items-center gap-2">
                                     <span className="text-3xl">🗓️</span>
                                     Automation Team Calendar
                                 </h1>
-                                <p className="text-slate-500 text-sm mt-1">Squad Availability & Training Tracker</p>
+                                <p className="text-slate-500 text-sm mt-1">Squad Availability Tracker (Synced)</p>
                             </div>
                             <button 
                                 onClick={openAddModal} 
@@ -133,7 +209,6 @@
 
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                             
-                            {/* Left Panel */}
                             <div className="lg:col-span-1 space-y-6">
                                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
                                     <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest text-slate-400">
@@ -162,7 +237,6 @@
                                 </div>
                             </div>
 
-                            {/* Main Calendar Grid */}
                             <div className="lg:col-span-4 bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
                                 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
                                     <h3 className="font-black text-2xl text-slate-900">{monthName} {year}</h3>
@@ -183,26 +257,26 @@
                                         const dayLeaves = getLeavesForDate(date);
                                         const isToday = date && date.toDateString() === new Date().toDateString();
                                         return (
-                                            <div key={idx} className={`border-r border-b border-slate-100 p-2 relative ${!date ? 'bg-slate-50/40' : 'hover:bg-slate-50/20'}`}>
+                                            <div key={idx} className={`border-r border-b border-slate-100 p-1 relative ${!date ? 'bg-slate-50/40' : 'hover:bg-slate-50/20'}`}>
                                                 {date && (
-                                                    <span className={`text-xs font-black inline-flex items-center justify-center rounded-xl w-8 h-8 ${isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-400'}`}>
+                                                    <span className={`text-[10px] font-black inline-flex items-center justify-center rounded-lg w-6 h-6 ${isToday ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>
                                                         {date.getDate()}
                                                     </span>
                                                 )}
-                                                <div className="mt-2 space-y-1.5 overflow-y-auto max-h-[85px] scrollbar-hide">
+                                                <div className="mt-1 space-y-1 overflow-y-auto max-h-[90px] scrollbar-hide">
                                                     {dayLeaves.map(leave => {
                                                         const member = TEAM_MEMBERS.find(m => m.id === leave.userId);
                                                         return (
                                                             <div 
                                                                 key={leave.id} 
-                                                                className={`leave-item group text-[9px] px-2 py-1.5 rounded-lg border shadow-sm truncate font-black text-white leading-none relative ${member?.color} ${member?.border}`}
+                                                                className={`leave-item text-[9px] px-1.5 py-1 rounded-md border shadow-sm font-black text-white leading-tight relative transition-all ${member?.color} ${member?.border}`}
                                                             >
-                                                                <div className="flex justify-between items-center">
-                                                                    <span>{member?.name} ({leave.type})</span>
-                                                                    <div className="edit-controls opacity-0 flex gap-1 bg-black/20 rounded px-1 transition-opacity">
-                                                                        <button onClick={(e) => openEditModal(leave, e)} title="Edit">✎</button>
-                                                                        <button onClick={(e) => handleDelete(leave.id, e)} title="Delete">×</button>
-                                                                    </div>
+                                                                <span className="block truncate pr-2">
+                                                                    {member?.name} ({leave.type})
+                                                                </span>
+                                                                <div className="edit-controls gap-1 bg-black/40 rounded px-1">
+                                                                    <button onClick={(e) => openEditModal(leave, e)} className="hover:text-yellow-300">✎</button>
+                                                                    <button onClick={(e) => handleDelete(leave.id, e)} className="hover:text-red-300">×</button>
                                                                 </div>
                                                             </div>
                                                         );
@@ -222,13 +296,13 @@
                             <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
                                 <div className="bg-indigo-600 p-10 text-white">
                                     <h2 className="text-3xl font-black mb-2">{editingId ? 'Edit Entry' : 'Register Leave'}</h2>
-                                    <p className="text-indigo-100/80 font-medium">Coordinate your schedule with the team.</p>
+                                    <p className="text-indigo-100/80 font-medium tracking-tight leading-tight">Your changes will be saved for everyone on the team.</p>
                                 </div>
                                 <form onSubmit={handleSave} className="p-10 space-y-6">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Team Member</label>
                                         <select 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700 appearance-none shadow-sm" 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700" 
                                             onChange={e => setFormState({...formState, userId: e.target.value})}
                                             value={formState.userId}
                                         >
@@ -238,17 +312,17 @@
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Start Date</label>
-                                            <input type="date" required value={formState.start} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold shadow-sm" onChange={e => setFormState({...formState, start: e.target.value})}/>
+                                            <input type="date" required value={formState.start} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold" onChange={e => setFormState({...formState, start: e.target.value})}/>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">End Date</label>
-                                            <input type="date" required value={formState.end} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold shadow-sm" onChange={e => setFormState({...formState, end: e.target.value})}/>
+                                            <input type="date" required value={formState.end} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold" onChange={e => setFormState({...formState, end: e.target.value})}/>
                                         </div>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Leave Category</label>
                                         <select 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700 appearance-none shadow-sm" 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 outline-none focus:border-indigo-500 font-bold text-slate-700" 
                                             value={formState.type}
                                             onChange={e => setFormState({...formState, type: e.target.value})}
                                         >
