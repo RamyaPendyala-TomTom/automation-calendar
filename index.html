@@ -41,12 +41,8 @@
         // Categories: Bank Holiday, Vacation, Event, Travel
         const LEAVE_TYPES = ['Vacation', 'Bank Holiday', 'Event', 'Travel'];
 
-        const INITIAL_LEAVES = [
-            { id: 1, userId: '1', start: '2026-02-10', end: '2026-02-12', type: 'Vacation' },
-            { id: 2, userId: '2', start: '2026-02-15', end: '2026-02-20', type: 'Travel' },
-            { id: 3, userId: '5', start: '2026-02-02', end: '2026-02-02', type: 'Bank Holiday' },
-            { id: 4, userId: '3', start: '2026-02-24', end: '2026-02-26', type: 'Event' },
-        ];
+        // Cleared initial holidays
+        const INITIAL_LEAVES = [];
 
         function App() {
             const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1)); // Start at Feb 2026
